@@ -17,8 +17,7 @@ CONFIG_FILE = "info_channels.json"
 class InfoCommands(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        self.api_url = "http://raw.thug4ff.com/info"
-        self.generate_url = "http://profile.thug4ff.com/api/profile"
+        self.api_url = "https://ff-api-anis-wa28.onrender.com"
         self.session = aiohttp.ClientSession()
         self.config_data = self.load_config()
         self.cooldowns = {}
@@ -168,7 +167,8 @@ class InfoCommands(commands.Cog):
 
         try:
             async with ctx.typing():
-                async with self.session.get(f"{self.api_url}?uid={uid}") as response:
+                # Thêm endpoint /player-info và tham số region=VN
+                async with self.session.get(f"{self.api_url}/player-info?uid={uid}&region=VN") as response:
                     if response.status == 404:
                         return await ctx.send(f" Player with UID `{uid}` not found.")
                     if response.status != 200:
@@ -176,16 +176,16 @@ class InfoCommands(commands.Cog):
                     data = await response.json()
 
             
-            basic_info = data.get('basicInfo', {})
+            # Mapping theo JSON mới của API Anis
+            account_info = data.get('AccountInfo', {})  # Thay cho basic_info
+            guild_info = data.get('GuildInfo', {})      # Thay cho clan_info
             captain_info = data.get('captainBasicInfo', {})
-            clan_info = data.get('clanBasicInfo', {})
             credit_score_info = data.get('creditScoreInfo', {})
             pet_info = data.get('petInfo', {})
-            profile_info = data.get('profileInfo', {})
-            social_info = data.get('socialInfo', {})
+            profile_info = data.get('AccountProfileInfo', {}) # Thay cho profile_info
+            social_info = data.get('socialinfo', {})    # Lưu ý chữ 's' thường ở socialinfo
 
-
-            region = basic_info.get('region', 'Not found')
+            region = account_info.get('AccountRegion', 'Not found')
 
             embed = discord.Embed(
                 title=" Player Information",
@@ -194,89 +194,76 @@ class InfoCommands(commands.Cog):
             )
             embed.set_thumbnail(url=ctx.author.display_avatar.url)
 
+            # CẬP NHẬT CÁC KEY TRONG EMBED
             embed.add_field(name="", value="\n".join([
                 "**┌  ACCOUNT BASIC INFO**",
-                f"**├─ Name**: {basic_info.get('nickname', 'Not found')}",
+                f"**├─ Name**: {acc_info.get('AccountName', 'Not found')}",
                 f"**├─ UID**: `{uid}`",
-                f"**├─ Level**: {basic_info.get('level', 'Not found')} (Exp: {basic_info.get('exp', '?')})",
+                f"**├─ Level**: {acc_info.get('AccountLevel', 'Not found')} (Exp: {acc_info.get('AccountEXP', '?')})",
                 f"**├─ Region**: {region}",
-                f"**├─ Likes**: {basic_info.get('liked', 'Not found')}",
+                f"**├─ Likes**: {acc_info.get('AccountLikes', 'Not found')}",
                 f"**├─ Honor Score**: {credit_score_info.get('creditScore', 'Not found')}",
                 f"**└─ Signature**: {social_info.get('signature', 'None') or 'None'}"
             ]), inline=False)
           
-
             embed.add_field(name="", value="\n".join([
                 "**┌  ACCOUNT ACTIVITY**",
-                f"**├─ Most Recent OB**: {basic_info.get('releaseVersion', '?')}",
-                f"**├─ Current BP Badges**: {basic_info.get('badgeCnt', 'Not found')}",
-                f"**├─ BR Rank**: {'' if basic_info.get('showBrRank') else 'Not found'} {basic_info.get('rankingPoints', '?')}",
-                f"**├─ CS Rank**: {'' if basic_info.get('showCsRank') else 'Not found'} {basic_info.get('csRankingPoints', '?')} ",
-                f"**├─ Created At**: {self.convert_unix_timestamp(int(basic_info.get('createAt', 'Not found')))}",
-                f"**└─ Last Login**: {self.convert_unix_timestamp(int(basic_info.get('lastLoginAt', 'Not found')))}"
-
+                f"**├─ Most Recent OB**: {acc_info.get('ReleaseVersion', '?')}",
+                f"**├─ Current BP Badges**: {acc_info.get('AccountBPBadges', 'Not found')}",
+                f"**├─ BR Rank**: {acc_info.get('BrRankPoint', '?') if acc_info.get('ShowBrRank') else 'Hidden'}",
+                f"**├─ CS Rank**: {acc_info.get('CsRankPoint', '?') if acc_info.get('ShowCsRank') else 'Hidden'}",
+                f"**├─ Created At**: {self.convert_unix_timestamp(int(acc_info.get('AccountCreateTime', 0)))}",
+                f"**└─ Last Login**: {self.convert_unix_timestamp(int(acc_info.get('AccountLastLogin', 0)))}"
             ]), inline=False)
 
             embed.add_field(name="", value="\n".join([
                 "**┌  ACCOUNT OVERVIEW**",
-                f"**├─ Avatar ID**: {profile_info.get('avatarId', 'Not found')}",
-                f"**├─ Banner ID**: {basic_info.get('bannerId', 'Not found')}",
+                # AvatarId giờ nằm trong AccountInfo
+                f"**├─ Avatar ID**: {acc_info.get('AccountAvatarId', 'Not found')}", 
+                f"**├─ Banner ID**: {acc_info.get('AccountBannerId', 'Not found')}",
                 f"**├─ Pin ID**: {captain_info.get('pinId', 'Not found') if captain_info else 'Default'}",
-                f"**└─ Equipped Skills**: {profile_info.get('equipedSkills', 'Not found')}"
+                f"**└─ Equipped Skills**: {profile_info.get('EquippedSkills', 'Not found')}"
             ]), inline=False)
 
             embed.add_field(name="", value="\n".join([
                 "**┌  PET DETAILS**",
-                f"**├─ Equipped?**: {'Yes' if pet_info.get('isSelected') else 'Not Found'}",
-                f"**├─ Pet Name**: {pet_info.get('name', 'Not Found')}",
+                f"**├─ Equipped?**: {'Yes' if pet_info.get('isSelected') else 'No'}",
+                # JSON PetInfo mới không thấy trả về Name, chỉ có ID, level, exp
+                f"**├─ Pet ID**: {pet_info.get('id', 'Not Found')}", 
                 f"**├─ Pet Exp**: {pet_info.get('exp', 'Not Found')}",
                 f"**└─ Pet Level**: {pet_info.get('level', 'Not Found')}"
             ]), inline=False)
 
-            if clan_info:
-                guild_info = [
+            if guild_info:
+                # Sửa key mapping cho Guild
+                guild_list_info = [
                     "**┌  GUILD INFO**",
-                    f"**├─ Guild Name**: {clan_info.get('clanName', 'Not found')}",
-                    f"**├─ Guild ID**: `{clan_info.get('clanId', 'Not found')}`",
-                    f"**├─ Guild Level**: {clan_info.get('clanLevel', 'Not found')}",
-                    f"**├─ Live Members**: {clan_info.get('memberNum', 'Not found')}/{clan_info.get('capacity', '?')}"
+                    f"**├─ Guild Name**: {guild_info.get('GuildName', 'Not found')}",
+                    f"**├─ Guild ID**: `{guild_info.get('GuildID', 'Not found')}`",
+                    f"**├─ Guild Level**: {guild_info.get('GuildLevel', 'Not found')}",
+                    f"**├─ Live Members**: {guild_info.get('GuildMember', 'Not found')}/{guild_info.get('GuildCapacity', '?')}"
                 ]
+                
+                # Captain Info giữ nguyên key camelCase vì API trả về như cũ
                 if captain_info:
-                    guild_info.extend([
+                    guild_list_info.extend([
                         "**└─ Leader Info**:",
-                        f"    **├─ Leader Name**: {captain_info.get('nickname', 'Not found')}",
-                        f"    **├─ Leader UID**: `{captain_info.get('accountId', 'Not found')}`",
-                        f"    **├─ Leader Level**: {captain_info.get('level', 'Not found')} (Exp: {captain_info.get('exp', '?')})",
-                        f"    **├─ Last Login**: {self.convert_unix_timestamp(int(captain_info.get('lastLoginAt', 'Not found')))}",
-                        f"    **├─ Title**: {captain_info.get('title', 'Not found')}",
-                        f"    **├─ BP Badges**: {captain_info.get('badgeCnt', '?')}",
-                        f"    **├─ BR Rank**: {'' if captain_info.get('showBrRank') else 'Not found'} {captain_info.get('rankingPoints', 'Not found')}",
-                        f"    **└─ CS Rank**: {'' if captain_info.get('showCsRank') else 'Not found'} {captain_info.get('csRankingPoints', 'Not found')} "
+                        f"    **├─ Leader Name**: {captain_info.get('nickname', 'Not found')}",
+                        f"    **├─ Leader UID**: `{captain_info.get('accountId', 'Not found')}`",
+                        f"    **├─ Leader Level**: {captain_info.get('level', 'Not found')}",
+                        f"    **├─ Last Login**: {self.convert_unix_timestamp(int(captain_info.get('lastLoginAt', 0)))}",
+                        f"    **├─ BR Rank**: {captain_info.get('rankingPoints', '?') if captain_info.get('showBrRank') else 'Hidden'}",
+                        f"    **└─ CS Rank**: {captain_info.get('csRankingPoints', '?') if captain_info.get('showCsRank') else 'Hidden'} "
                     ])
-                embed.add_field(name="", value="\n".join(guild_info), inline=False)
-
-
+                embed.add_field(name="", value="\n".join(guild_list_info), inline=False)
 
             embed.set_footer(text="DEVELOPED BY THUG")
             await ctx.send(embed=embed)
 
-            if region and uid:
-                try:
-                    image_url = f"{self.generate_url}?uid={uid}"
-                    print(f"Url d'image = {image_url}")
-                    if image_url:
-                        async with self.session.get(image_url) as img_file:
-                            if img_file.status == 200:
-                                with io.BytesIO(await img_file.read()) as buf:
-                                    file = discord.File(buf, filename=f"outfit_{uuid.uuid4().hex[:8]}.png")
-                                    await ctx.send(file=file)  # ✅ ENVOYER L'IMAGE
-                                    print("Image envoyée avec succès")
-                            else:
-                                print(f"Erreur HTTP: {img_file.status}")
-                except Exception as e:
-                    print("Image generation failed:", e)
+            # Đã xóa phần generate image vì API mới không hỗ trợ link đó.
 
         except Exception as e:
+            print(f"Error: {e}") # In lỗi ra console để debug nếu cần
             await ctx.send(f" Unexpected error: `{e}`")
         finally:
             gc.collect()
