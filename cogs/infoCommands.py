@@ -150,8 +150,6 @@ class InfoCommands(commands.Cog):
         if not await self.is_channel_allowed(ctx):
             return await ctx.send(" This command is not allowed in this channel.", ephemeral=True)
 
-
-
         cooldown = self.config_data["global_settings"]["default_cooldown"]
         if guild_id in self.config_data["servers"]:
             cooldown = self.config_data["servers"][guild_id]["config"].get("cooldown", cooldown)
@@ -163,11 +161,9 @@ class InfoCommands(commands.Cog):
                 return await ctx.send(f" Please wait {remaining}s before using this command again", ephemeral=True)
 
         self.cooldowns[ctx.author.id] = datetime.now()
-       
 
         try:
             async with ctx.typing():
-                # Thêm endpoint /player-info và tham số region=VN
                 async with self.session.get(f"{self.api_url}/player-info?uid={uid}&region=VN") as response:
                     if response.status == 404:
                         return await ctx.send(f" Player with UID `{uid}` not found.")
@@ -175,17 +171,16 @@ class InfoCommands(commands.Cog):
                         return await ctx.send("API error. Try again later.")
                     data = await response.json()
 
-            
-            # Mapping theo JSON mới của API Anis
-            account_info = data.get('AccountInfo', {})  # Thay cho basic_info
-            guild_info = data.get('GuildInfo', {})      # Thay cho clan_info
+            # --- SỬA TÊN BIẾN Ở ĐÂY THÀNH acc_info ---
+            acc_info = data.get('AccountInfo', {})  # Đã đổi từ account_info thành acc_info
+            guild_info = data.get('GuildInfo', {})
             captain_info = data.get('captainBasicInfo', {})
             credit_score_info = data.get('creditScoreInfo', {})
             pet_info = data.get('petInfo', {})
-            profile_info = data.get('AccountProfileInfo', {}) # Thay cho profile_info
-            social_info = data.get('socialinfo', {})    # Lưu ý chữ 's' thường ở socialinfo
+            profile_info = data.get('AccountProfileInfo', {})
+            social_info = data.get('socialinfo', {})
 
-            region = account_info.get('AccountRegion', 'Not found')
+            region = acc_info.get('AccountRegion', 'Not found') # Đã khớp biến acc_info
 
             embed = discord.Embed(
                 title=" Player Information",
@@ -194,7 +189,7 @@ class InfoCommands(commands.Cog):
             )
             embed.set_thumbnail(url=ctx.author.display_avatar.url)
 
-            # CẬP NHẬT CÁC KEY TRONG EMBED
+            # CẬP NHẬT CÁC KEY DÙNG acc_info
             embed.add_field(name="", value="\n".join([
                 "**┌  ACCOUNT BASIC INFO**",
                 f"**├─ Name**: {acc_info.get('AccountName', 'Not found')}",
@@ -218,7 +213,6 @@ class InfoCommands(commands.Cog):
 
             embed.add_field(name="", value="\n".join([
                 "**┌  ACCOUNT OVERVIEW**",
-                # AvatarId giờ nằm trong AccountInfo
                 f"**├─ Avatar ID**: {acc_info.get('AccountAvatarId', 'Not found')}", 
                 f"**├─ Banner ID**: {acc_info.get('AccountBannerId', 'Not found')}",
                 f"**├─ Pin ID**: {captain_info.get('pinId', 'Not found') if captain_info else 'Default'}",
@@ -228,14 +222,12 @@ class InfoCommands(commands.Cog):
             embed.add_field(name="", value="\n".join([
                 "**┌  PET DETAILS**",
                 f"**├─ Equipped?**: {'Yes' if pet_info.get('isSelected') else 'No'}",
-                # JSON PetInfo mới không thấy trả về Name, chỉ có ID, level, exp
                 f"**├─ Pet ID**: {pet_info.get('id', 'Not Found')}", 
                 f"**├─ Pet Exp**: {pet_info.get('exp', 'Not Found')}",
                 f"**└─ Pet Level**: {pet_info.get('level', 'Not Found')}"
             ]), inline=False)
 
             if guild_info:
-                # Sửa key mapping cho Guild
                 guild_list_info = [
                     "**┌  GUILD INFO**",
                     f"**├─ Guild Name**: {guild_info.get('GuildName', 'Not found')}",
@@ -244,7 +236,6 @@ class InfoCommands(commands.Cog):
                     f"**├─ Live Members**: {guild_info.get('GuildMember', 'Not found')}/{guild_info.get('GuildCapacity', '?')}"
                 ]
                 
-                # Captain Info giữ nguyên key camelCase vì API trả về như cũ
                 if captain_info:
                     guild_list_info.extend([
                         "**└─ Leader Info**:",
@@ -260,10 +251,8 @@ class InfoCommands(commands.Cog):
             embed.set_footer(text="DEVELOPED BY THUG")
             await ctx.send(embed=embed)
 
-            # Đã xóa phần generate image vì API mới không hỗ trợ link đó.
-
         except Exception as e:
-            print(f"Error: {e}") # In lỗi ra console để debug nếu cần
+            print(f"Error: {e}") 
             await ctx.send(f" Unexpected error: `{e}`")
         finally:
             gc.collect()
